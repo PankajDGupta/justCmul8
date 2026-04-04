@@ -1,4 +1,4 @@
-# JustCmul8 — Implementation Plan (v7 — Final)
+# JustCmul8 — Implementation Plan (v8 — UI Polish Complete)
 
 ## Goal Description
 
@@ -20,6 +20,9 @@ Build a no-code, browser-accessible discrete event simulation platform. Users cr
 | **Viewport Sync** | Live sync — node drag triggers sprite picker |
 | **AI Chat** | Gemini-powered graph generation |
 | **LLM Provider** | **Google Gemini** (gemini-2.0-flash) |
+| **Smooth Scroll** | **Lenis** — physics-based inertia scroll via `<ReactLenis root>` |
+| **Navbar** | Floating centered HUD (1040px), corner-bracket borders, auth-aware |
+| **Border Style** | Corner-bracket only (no full borders) — CSS variable driven system |
 
 ---
 
@@ -396,49 +399,58 @@ Google Fonts import:
 
 ### Component Style Guide
 
-#### Navbar
-- `glass-panel` background, fixed, `z-50`.
-- Logo in **Orbitron** font with cyan glow.
-- Nav links: `text-secondary` → `text-accent` on hover with underline glow.
-- Active link: `text-cyan` with bottom border glow.
-- "Register" / CTA button: `border border-neon-cyan` with `hover-glow-cyan`.
+#### Navbar ✅ IMPLEMENTED
+- **Layout**: Floating centered container, `top: 12px`, `max-width: 1040px`, not full-width.
+- **Background layer** is a sibling `div` (outside `<motion.nav>`) so `backdrop-filter` works natively without framer-motion stacking context interference.
+- **Corner-bracket borders** on the container using CSS multi-gradient background — same system as cards/buttons.
+- **Glowing bottom edge line**: Thin `h-px` neon cyan line with box-shadow glow.
+- **Vertical `|` dividers** with gradient fade between logo / nav links / CTAs zones.
+- **`//` hover prefix** on nav links — slides in from left with a `pl-4` transition.
+- **Underline glow** on nav link hover — scales in from left with box-shadow.
+- **Auth-aware**: detects Supabase session on mount + `onAuthStateChange` subscription.
+  - **Guest**: shows `LOGIN` + `GET STARTED` buttons.
+  - **Authenticated**: shows `DASHBOARD` + `LOGOUT` buttons (email removed from inline nav to prevent overflow).
+- **Glassmorphism on scroll**: transitions from `blur(8px)` background at idle to `blur(20px)` + darker bg once scrolled past 20px.
+- **Consistent across all pages**: Dashboard, login, signup, and landing all import `<Navbar />` with zero props.
 
-#### Cards (Feature Cards, Project Cards, Pricing)
+#### Cards (Feature Cards, Project Cards, Pricing) ✅ IMPLEMENTED
 - `glass-panel` with `hover-glow-cyan` on hover.
 - Thin `border-cyan/15` default → `border-cyan/40` on hover.
-- Optional notched corners via `clip-path`.
+- **No rounded corners** — uses `.notched-card` (clip-path diagonal) or `.card-cyber` (corner-bracket system) instead.
 - Category tags: small pill with `bg-cyan/10 text-cyan` or `bg-magenta/10 text-magenta`.
 - Price badges: positioned absolute top-right, `bg-neon-green/20 text-neon-green` with glow.
+- `GlassCard` component supports `heavy`, `notched`, `hover`, `accentColor` props.
 
-#### Buttons
+#### Buttons ✅ IMPLEMENTED — Corner-Bracket System
+
+All buttons use **corner-bracket-only borders** (no full border, no border-radius). Implemented via CSS `::before` multi-gradient background:
+
 ```css
-/* Primary CTA */
+/* Corner bracket CSS variables */
+--corner-color: rgba(0,242,255,0.7);
+--corner-w: 12px;   /* horizontal arm length */
+--corner-h: 12px;   /* vertical arm length */
+--corner-t: 1.5px;  /* stroke thickness */
+
+/* Primary CTA — transparent bg, cyan brackets, pulse glow animation */
 .btn-cyber-primary {
-  background: linear-gradient(135deg, rgba(0, 242, 255, 0.15), rgba(112, 0, 255, 0.15));
-  border: 1px solid rgba(0, 242, 255, 0.5);
+  background: transparent;
   color: #00f2ff;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-.btn-cyber-primary:hover {
-  background: linear-gradient(135deg, rgba(0, 242, 255, 0.25), rgba(112, 0, 255, 0.25));
-  box-shadow: 0 0 15px rgba(0, 242, 255, 0.4), 0 0 30px rgba(0, 242, 255, 0.2);
+  position: relative;
+  /* Corner brackets via ::before pseudo-element */
 }
 
-/* Secondary / Ghost */
-.btn-cyber-ghost {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #9ca3af;
-}
-.btn-cyber-ghost:hover {
-  border-color: rgba(0, 242, 255, 0.4);
-  color: #00f2ff;
-}
+/* Ghost — dim bracket corners, muted text → cyan on hover */
+.btn-cyber-ghost { ... }
+
+/* Danger — red bracket variant for destructive actions */
+.btn-cyber-danger { ... }
 ```
+
+> [!NOTE]
+> Use `.animate-pulse-glow` alongside `.btn-cyber-primary` for a breathing neon shadow effect on CTAs.
 
 #### Inputs & Search Bars (Terminal Style)
 - Dark background `bg-black/60`, monospaced font (`JetBrains Mono`).
@@ -571,6 +583,7 @@ User prompt
 | Framework | Next.js 14+ (App Router) | SSR, routing, API routes |
 | Styling | Tailwind CSS + custom CSS | Cyberpunk theme, glassmorphism |
 | Animation | Framer Motion | Page transitions, micro-interactions |
+| Smooth Scroll | **Lenis** (`lenis/react`) | Physics-based inertia scrolling via `<ReactLenis root>` |
 | Node Editor | `@xyflow/react` | Drag-and-drop simulation graph |
 | 2D Viewport | Pixi.js | GPU-accelerated sprite animation |
 | Sim Engine | Pyodide (Web Worker) | In-browser Python/SimPy |
@@ -642,11 +655,14 @@ The landing page is a single vertically-scrolling page divided into **8 distinct
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- Fixed at top, `glass-panel` bg, `z-50`.
-- `JUSTCMUL8` in **Orbitron** with cyan text-glow.
-- Nav links: smooth-scroll to page sections. `text-secondary` → `text-accent` on hover.
-- **Login**: `btn-cyber-ghost`. **Get Started**: `btn-cyber-primary`.
-- If authenticated: "Login / Get Started" → replaced by **"Dashboard"** button.
+- Fixed at top, floating centered container at `max-width: 1040px`, `z-50`.
+- `JUSTCMUL8` in **Orbitron** with cyan text-glow and `<GlitchText intensity="normal">` wrapper.
+- Nav links: `//` hover prefix, smooth-scroll to page sections. `text-secondary` → `text-accent` on hover with underline glow.
+- **Corner-bracket container borders** on the entire navbar panel.
+- **Thin glowing bottom edge** line (neon cyan, fades at edges).
+- **Vertical `|` section dividers** between logo / nav / CTAs.
+- **Auth-aware CTAs**: Guest → `[LOGIN]` `[GET STARTED]`; Authenticated → `[DASHBOARD]` `[LOGOUT]`.
+- **Glassmorphism activates on scroll** (`blur(8px)` → `blur(20px)`).
 
 ---
 
@@ -673,17 +689,15 @@ The landing page is a single vertically-scrolling page divided into **8 distinct
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Visual Treatment:**
-- Background: `cyber-grid` with slow diagonal scroll + subtle floating particles (CSS-only or lightweight canvas).
-- Headline: **Orbitron 900**, ~56px, white with periodic `glitch` animation (cyan/magenta text-shadow offset). Staggered word reveal via Framer Motion.
-- Subheadline / Value Proposition: **Inter 400**, ~18px, `text-secondary`, max-width 640px, centered. Fades in after headline.
-- Primary CTA: `btn-cyber-primary`, large. Pulses gently with `pulse-glow` animation.
-- Secondary CTA: `btn-cyber-ghost`. Scrolls to Features section.
-- **Framer Motion**: 
-  1. Grid background fades in (200ms).
-  2. Headline slides up + reveals (400ms, delay 300ms).
-  3. Value prop fades in (400ms, delay 600ms).
-  4. CTAs scale in (300ms, delay 900ms).
+**Visual Treatment (✅ IMPLEMENTED):**
+- **Fixed cyberpunk background image** (`/public/cyberpunk_fixed_bg.png`) applied globally as `fixed inset-0`, blended with `mix-blend-screen opacity-50`. All page sections scroll over this fixed layer.
+- **Global `cyber-grid` overlay** — subtle animated dot grid at `z-0`.
+- **CRT scanline sweep** animates over the logo container.
+- Hero logo: `/public/justcmul8new.png` displayed via `next/image` with `mix-blend-screen`, `drop-shadow` glow, and a sweeping animated scanline.
+- Headline: **Orbitron 900**, wrapped in `<GlitchText intensity="high" delay={0}>` — dual cyan/magenta chromatic aberration glitch.
+- Subheadline `TRANSFORM YOUR OPERATIONS`: wrapped in `<GlitchText intensity="high" delay={0.8}>` — **offset by 0.8s** so logo and text never glitch simultaneously.
+- Primary CTA: `btn-cyber-primary` with corner brackets. Secondary: `btn-cyber-ghost`.
+- **Smooth scrolling**: `<ReactLenis root>` wraps entire page for physics-based inertia.
 
 ---
 
@@ -1089,8 +1103,66 @@ create table chat_history (...);  -- same as v5
 - `npm run dev` and verify:
   - ✅ Cyberpunk preloader animation.
   - ✅ Landing page: glitch hero, cyber-grid, glassmorphism cards, neon glows, Orbitron headings.
+  - ✅ Fixed cyberpunk background visible behind all scrollable page sections.
+  - ✅ Lenis smooth scroll with inertia active site-wide.
+  - ✅ Navbar: floating centered HUD, corner-bracket borders, glassmorphism on scroll.
+  - ✅ Navbar: auth-aware — LOGIN/GET STARTED for guests, DASHBOARD/LOGOUT for users.
+  - ✅ Navbar consistent across landing, dashboard, login, signup pages.
+  - ✅ `GlitchText` delay offsets — logo and heading glitch at different times.
+  - ✅ Corner-bracket system on all buttons (primary, ghost, danger) and cards.
   - ✅ Auth: Supabase login/signup with cyberpunk-styled forms.
-  - ✅ Dashboard: project list, new sim modal with type selection.
+  - ✅ Dashboard: project list, new sim modal with type selection, uses shared Navbar.
   - ✅ Workspace: Node editor with cyberpunk nodes → sprite picker → viewport sync.
   - ✅ AI Chat: Gemini generates graph from description → canvas + viewport populate.
   - ✅ Auto-save to Supabase.
+
+---
+
+## 🧩 Reusable Component Library (Design System)
+
+All patterns are captured as reusable components. Any new page can compose from these building blocks.
+
+### React Components
+
+| Component | File | Props |
+|---|---|---|
+| `<GlitchText>` | `src/components/ui/GlitchText.tsx` | `intensity`, `delay`, `active` |
+| `<GlassCard>` | `src/components/ui/GlassCard.tsx` | `heavy`, `notched`, `hover`, `accentColor`, `as` |
+| `<JustCmul8Icon>` | `src/components/ui/JustCmul8Icon.tsx` | `className` |
+| `<Navbar>` | `src/components/layout/Navbar.tsx` | *(none — fully self-contained, auth-aware)* |
+
+### Global CSS Utility Classes
+
+| Class | Purpose |
+|---|---|
+| `.btn-cyber-primary` | Primary CTA button — corner brackets, cyan, pulse-glow |
+| `.btn-cyber-ghost` | Ghost button — dim brackets, muted text |
+| `.btn-cyber-danger` | Danger/destructive button — red bracket variant |
+| `.animate-pulse-glow` | Breathing neon box-shadow animation |
+| `.glass-panel` | Standard glassmorphism panel |
+| `.glass-panel-heavy` | Heavier blur glassmorphism for modals |
+| `.card-cyber` | Corner-bracket card (no full border) |
+| `.notched-card` | Diagonal clip-path corner cut (16px) |
+| `.notched-card-sm` | Diagonal clip-path corner cut (10px) |
+| `.cyber-grid` | Animated scrolling dot grid overlay |
+| `.text-glow-cyan` | Static cyan text shadow |
+| `.hover-glow-cyan` | Glow box-shadow on hover |
+| `.animate-float` | Gentle vertical float animation |
+
+### New Page Template
+
+```tsx
+import Navbar from "@/components/layout/Navbar";
+
+export default function NewPage() {
+  return (
+    <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
+      <div className="fixed inset-0 cyber-grid opacity-10 pointer-events-none" />
+      <Navbar />
+      <main className="max-w-7xl mx-auto px-4 pt-24 pb-16">
+        {/* content using GlassCard, GlitchText, btn-cyber-* */}
+      </main>
+    </div>
+  );
+}
+```
