@@ -3,8 +3,9 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, ExternalLink, Hexagon, LogOut, Clock, X } from "lucide-react";
+import { Plus, Trash2, ExternalLink, LogOut, Clock, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import Navbar from "@/components/layout/Navbar";
 
 const SIM_TYPES = [
   { id: "human_queue", icon: "🧍", label: "HUMAN QUEUE", color: "var(--neon-green)", desc: "Bank, hospital, airport queues" },
@@ -75,24 +76,11 @@ export default function DashboardPage() {
     <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
       <div className="fixed inset-0 cyber-grid opacity-10 pointer-events-none" />
 
-      {/* Navbar */}
-      <nav className="glass-panel fixed top-0 left-0 right-0 z-50" style={{ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }}>
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <Hexagon size={22} style={{ fill: "rgba(0,242,255,0.15)", stroke: "#00f2ff" }} />
-            <span className="font-display font-bold tracking-widest text-neon-cyan text-glow-cyan" style={{ fontFamily: "var(--font-display)", fontSize: "1rem" }}>JUSTCMUL8</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-xs hidden sm:block" style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{userEmail}</span>
-            <button onClick={logout} className="btn-cyber-ghost" style={{ padding: "6px 14px", fontSize: "0.75rem" }}>
-              <LogOut size={14} /> LOGOUT
-            </button>
-          </div>
-        </div>
-      </nav>
+      {/* Shared cyberpunk Navbar */}
+      <Navbar />
 
       {/* Main */}
-      <main className="max-w-7xl mx-auto px-4 pt-28 pb-16">
+      <main className="max-w-7xl mx-auto px-4 pt-24 pb-16">
         <div className="flex items-center justify-between mb-10">
           <div>
             <p className="text-xs tracking-widest mb-1" style={{ fontFamily: "var(--font-mono)", color: "var(--neon-cyan)" }}>OPERATOR CONSOLE</p>

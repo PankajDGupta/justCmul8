@@ -56,7 +56,7 @@ export default function HeroSection() {
         >
           <h1 className="mb-6 w-full flex justify-center">
             <span className="sr-only">JustCmul8</span>
-            <GlitchText intensity="high">
+            <GlitchText intensity="high" delay={0}>
               <div className="relative w-[90vw] max-w-[1000px] h-[120px] sm:h-[200px] md:h-[280px] mx-auto overflow-hidden">
                 {/* Static Faint CRT Grill */}
                 <div 
@@ -78,11 +78,11 @@ export default function HeroSection() {
                   transition={{ duration: 3.5, repeat: Infinity, ease: "linear" }}
                 />
                 <Image
-                  src="/justcmul8logo.png"
+                  src="/justcmul8new.png"
                   alt="JustCmul8 Logo"
                   fill
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 800px, 1000px"
-                  className="object-contain drop-shadow-[0_0_4px_rgba(0,242,255,0.3)] mix-blend-screen relative z-10 opacity-80"
+                  className="object-contain drop-shadow-[0_0_8px_rgba(0,242,255,0.5)] mix-blend-screen relative z-10 opacity-90"
                   priority
                 />
               </div>
@@ -97,7 +97,7 @@ export default function HeroSection() {
               color: "#ffffff",
             }}
           >
-            <GlitchText intensity="high">
+            <GlitchText intensity="high" delay={0.8}>
               TRANSFORM YOUR
               <br />
               <span className="text-neon-cyan">OPERATIONS</span>
