@@ -7,6 +7,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { LayoutDashboard, LogIn, UserPlus, Menu, X, Hexagon } from "lucide-react";
 import { GlitchText } from "@/components/ui/GlitchText";
+import { JustCmul8Icon } from "@/components/ui/JustCmul8Icon";
 
 const navLinks = [
   { label: "Features", href: "/#features" },
@@ -47,14 +48,8 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="relative w-8 h-8 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12">
-              <Image
-                src="/logo.png"
-                alt="JustCmul8 Logo"
-                fill
-                className="object-contain"
-                priority
-              />
+            <div className="relative w-8 h-8 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 flex items-center justify-center">
+              <JustCmul8Icon className="w-full h-full text-neon-cyan drop-shadow-[0_0_8px_rgba(0,242,255,0.8)]" />
             </div>
             <span
               className="font-display font-700 text-lg tracking-widest text-neon-cyan"

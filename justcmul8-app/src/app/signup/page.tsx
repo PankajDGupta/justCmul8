@@ -2,8 +2,9 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Hexagon, UserPlus, Mail, Lock, Eye, EyeOff, User } from "lucide-react";
+import { UserPlus, Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { JustCmul8Icon } from "@/components/ui/JustCmul8Icon";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -41,7 +42,7 @@ export default function SignupPage() {
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <Hexagon size={28} style={{ fill: "rgba(0,242,255,0.15)", stroke: "#00f2ff" }} />
+            <JustCmul8Icon className="w-8 h-8 text-neon-cyan drop-shadow-[0_0_8px_rgba(0,242,255,0.8)]" />
             <span className="font-display font-bold text-xl tracking-widest text-neon-cyan text-glow-cyan" style={{ fontFamily: "var(--font-display)" }}>JUSTCMUL8</span>
           </Link>
           <h1 className="font-display font-bold text-white text-2xl tracking-wider" style={{ fontFamily: "var(--font-display)" }}>CREATE ACCOUNT</h1>
