@@ -8,12 +8,14 @@ import { createClient } from "@/lib/supabase/client";
 import Navbar from "@/components/layout/Navbar";
 
 const SIM_TYPES = [
-  { id: "human_queue", icon: "🧍", label: "HUMAN QUEUE", color: "var(--neon-green)", desc: "Bank, hospital, airport queues" },
-  { id: "vehicle", icon: "🚗", label: "VEHICLE", color: "var(--neon-cyan)", desc: "Traffic, gas stations, drive-thru" },
-  { id: "liquid", icon: "💧", label: "LIQUID / MATERIAL", color: "var(--neon-purple)", desc: "Water treatment, fuel tanks" },
-  { id: "manufacturing", icon: "🏭", label: "MANUFACTURING", color: "var(--neon-orange)", desc: "Assembly lines, QC, robots" },
-  { id: "logistics", icon: "📦", label: "LOGISTICS", color: "var(--neon-yellow)", desc: "Warehouses, sort centers, docks" },
+  { id: "human_queue",    icon: "🧍", label: "HUMAN QUEUE",       color: "var(--neon-green)",   desc: "Bank, hospital, airport queues" },
+  { id: "vehicle",        icon: "🚗", label: "VEHICLE",            color: "var(--neon-cyan)",    desc: "Traffic, gas stations, drive-thru" },
+  { id: "liquid",         icon: "💧", label: "LIQUID / MATERIAL",  color: "var(--neon-purple)",  desc: "Water treatment, fuel tanks" },
+  { id: "manufacturing",  icon: "🏭", label: "MANUFACTURING",      color: "var(--neon-orange)",  desc: "Assembly lines, QC, robots" },
+  { id: "logistics",      icon: "📦", label: "LOGISTICS",          color: "var(--neon-yellow)",  desc: "Warehouses, sort centers, docks" },
+  { id: "network_signal", icon: "📡", label: "NETWORK / SIGNAL",   color: "var(--neon-magenta)", desc: "Microservices, IoT, pub/sub, CDN" },
 ];
+
 
 interface Project { id: string; name: string; sim_type: string; updated_at: string; user_id: string; }
 
@@ -55,6 +57,9 @@ export default function DashboardPage() {
       setShowModal(false);
       setNewName("");
       router.push(`/dashboard/project/${data.id}`);
+    } else {
+      console.error("Supabase Error:", error);
+      alert("Failed to create project check console: " + (error?.message || JSON.stringify(error)));
     }
     setCreating(false);
   }

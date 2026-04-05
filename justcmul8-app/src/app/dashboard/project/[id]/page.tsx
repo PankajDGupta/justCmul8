@@ -2,15 +2,18 @@
 import React from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Hexagon, ArrowLeft, Play, Pause, Square, FastForward, Save } from "lucide-react";
+import { ArrowLeft, Play, Pause, Square, FastForward, Save, LayoutTemplate, Columns, MonitorPlay } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { JustCmul8Icon } from "@/components/ui/JustCmul8Icon";
 
-// Dynamic imports to avoid SSR issues with canvas libs
 const NodeCanvas = dynamic(() => import("@/components/workspace/NodeCanvas"), { ssr: false });
 const ViewportPanel = dynamic(() => import("@/components/workspace/ViewportPanel"), { ssr: false });
 const AIChatPanel = dynamic(() => import("@/components/workspace/AIChatPanel"), { ssr: false });
 const NodePalette = dynamic(() => import("@/components/workspace/NodePalette"), { ssr: false });
+
+import { ClientSimEngine } from "@/lib/simulation/clientEngine";
+import { SIM_TYPE_REGISTRY } from "@/lib/simulation/simTypeRegistry";
 
 export type SimState = "idle" | "running" | "paused";
 
@@ -28,7 +31,17 @@ export default function WorkspacePage() {
   const [saved, setSaved] = React.useState(true);
   const [nodes, setNodes] = React.useState<any[]>([]);
   const [edges, setEdges] = React.useState<any[]>([]);
+  const [viewMode, setViewMode] = React.useState<"workspace" | "split" | "viewport">("split");
   const saveTimer = React.useRef<NodeJS.Timeout | null>(null);
+  
+  const engineRef = React.useRef<ClientSimEngine | null>(null);
+
+  React.useEffect(() => {
+    engineRef.current = new ClientSimEngine();
+    return () => {
+      if (engineRef.current) engineRef.current.stop();
+    };
+  }, []);
 
   React.useEffect(() => {
     loadProject();
@@ -80,29 +93,72 @@ export default function WorkspacePage() {
           <ArrowLeft size={14} /> BACK
         </Link>
         <div className="w-px h-6" style={{ background: "rgba(0,242,255,0.15)" }} />
-        <Hexagon size={16} style={{ fill: "rgba(0,242,255,0.15)", stroke: "#00f2ff" }} />
+        <JustCmul8Icon width={20} height={20} style={{ color: "var(--neon-cyan)" }} />
         <span className="font-display font-bold text-sm text-neon-cyan tracking-wider truncate max-w-xs" style={{ fontFamily: "var(--font-display)" }}>
           {project?.name}
         </span>
         <div className="flex-1" />
 
+        {/* View Toggles */}
+        <div className="flex items-center gap-1 p-1 rounded" style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,242,255,0.1)" }}>
+          <button onClick={() => setViewMode("workspace")} className="flex items-center gap-1.5 px-3 py-1.5 rounded transition-all"
+            style={{ background: viewMode === "workspace" ? "rgba(0,242,255,0.15)" : "transparent", color: viewMode === "workspace" ? "var(--neon-cyan)" : "var(--text-muted)", fontSize: "0.7rem", fontFamily: "var(--font-mono)" }}>
+            <LayoutTemplate size={12} /> WORKSPACE
+          </button>
+          <button onClick={() => setViewMode("split")} className="flex items-center gap-1.5 px-3 py-1.5 rounded transition-all"
+            style={{ background: viewMode === "split" ? "rgba(0,242,255,0.15)" : "transparent", color: viewMode === "split" ? "var(--neon-cyan)" : "var(--text-muted)", fontSize: "0.7rem", fontFamily: "var(--font-mono)" }}>
+            <Columns size={12} /> SPLIT VIEW
+          </button>
+          <button onClick={() => setViewMode("viewport")} className="flex items-center gap-1.5 px-3 py-1.5 rounded transition-all"
+            style={{ background: viewMode === "viewport" ? "rgba(0,242,255,0.15)" : "transparent", color: viewMode === "viewport" ? "var(--neon-cyan)" : "var(--text-muted)", fontSize: "0.7rem", fontFamily: "var(--font-mono)" }}>
+            <MonitorPlay size={12} /> 2D VIEWPORT
+          </button>
+        </div>
+
+        <div className="flex-1" />
+
         {/* Sim Controls */}
         <div className="flex items-center gap-2">
           {simState === "idle" || simState === "paused" ? (
-            <button id="toolbar-run" onClick={() => setSimState("running")} className="btn-cyber-primary" style={{ padding: "4px 12px", fontSize: "0.7rem" }}>
+            <button id="toolbar-run" onClick={() => {
+              if (simState === "idle" && engineRef.current) {
+                engineRef.current.start({
+                  simType: project?.sim_type as any,
+                  durationSeconds: 1000,
+                  tickIntervalSeconds: 0.1,
+                  speedMultiplier: speed,
+                  graph: { nodes, edges }
+                });
+              } else if (simState === "paused" && engineRef.current) {
+                engineRef.current.resume();
+              }
+              setSimState("running");
+            }} className="btn-cyber-primary" style={{ padding: "4px 12px", fontSize: "0.7rem" }}>
               <Play size={12} /> RUN
             </button>
           ) : (
-            <button id="toolbar-pause" onClick={() => setSimState("paused")} className="btn-cyber-ghost" style={{ padding: "4px 12px", fontSize: "0.7rem" }}>
+            <button id="toolbar-pause" onClick={() => {
+              if (engineRef.current) engineRef.current.pause();
+              setSimState("paused");
+            }} className="btn-cyber-ghost" style={{ padding: "4px 12px", fontSize: "0.7rem" }}>
               <Pause size={12} /> PAUSE
             </button>
           )}
-          <button id="toolbar-stop" onClick={() => setSimState("idle")} className="btn-cyber-ghost" style={{ padding: "4px 10px", fontSize: "0.7rem" }}>
+          <button id="toolbar-stop" onClick={() => {
+            if (engineRef.current) engineRef.current.stop();
+            setSimState("idle");
+          }} className="btn-cyber-ghost" style={{ padding: "4px 10px", fontSize: "0.7rem" }}>
             <Square size={12} />
           </button>
           <div className="flex items-center gap-1">
             <FastForward size={12} style={{ color: "var(--text-muted)" }} />
-            <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}
+            <select value={speed} onChange={(e) => {
+              const newSpeed = Number(e.target.value);
+              setSpeed(newSpeed);
+              if (engineRef.current) {
+                engineRef.current.updateSpeed(newSpeed);
+              }
+            }}
               className="text-xs rounded px-1 py-0.5" style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(0,242,255,0.2)", color: "var(--neon-cyan)", fontFamily: "var(--font-mono)" }}>
               {speedOptions.map((s) => <option key={s} value={s}>{s}x</option>)}
             </select>
@@ -118,35 +174,49 @@ export default function WorkspacePage() {
 
       {/* 4-Panel Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Node Palette */}
-        <div className="w-48 flex-shrink-0 overflow-y-auto border-r" style={{ borderColor: "rgba(0,242,255,0.1)", background: "var(--bg-secondary)" }}>
-          <NodePalette simType={project?.sim_type || "human_queue"} />
-        </div>
+        {/* Left: Node Palette (hidden in viewport mode) */}
+        {viewMode !== "viewport" && (
+          <div className="w-48 flex-shrink-0 overflow-y-auto border-r" style={{ borderColor: "rgba(0,242,255,0.1)", background: "var(--bg-secondary)" }}>
+            <NodePalette simType={project?.sim_type || "human_queue"} />
+          </div>
+        )}
 
-        {/* Center-Left: React Flow Canvas */}
-        <div className="flex-1 min-w-0">
-          <NodeCanvas
-            nodes={nodes}
-            edges={edges}
-            onChange={onGraphChange}
-            simState={simState}
-            simType={project?.sim_type || "human_queue"}
-          />
-        </div>
+        {/* Center-Left: React Flow Canvas (hidden in viewport mode) */}
+        {viewMode !== "viewport" && (
+          <div className="flex-1 min-w-0">
+            <NodeCanvas
+              nodes={nodes}
+              edges={edges}
+              onChange={onGraphChange}
+              simState={simState}
+              simType={project?.sim_type || "human_queue"}
+            />
+          </div>
+        )}
 
-        {/* Center-Right: Pixi.js Viewport */}
-        <div className="w-80 flex-shrink-0 border-l" style={{ borderColor: "rgba(0,242,255,0.1)" }}>
-          <ViewportPanel nodes={nodes} simState={simState} simType={project?.sim_type || "human_queue"} />
-        </div>
+        {/* Center-Right: Pixi.js Viewport (hidden in workspace mode) */}
+        {viewMode !== "workspace" && (
+          <div className="flex-1 min-w-0 border-l relative" style={{ borderColor: "rgba(0,242,255,0.1)" }}>
+            <ViewportPanel 
+              nodes={nodes} 
+              edges={edges}
+              simState={simState} 
+              simType={project?.sim_type || "human_queue"} 
+              engine={engineRef.current}
+            />
+          </div>
+        )}
 
-        {/* Right: AI Chat */}
-        <div className="w-72 flex-shrink-0 border-l" style={{ borderColor: "rgba(0,242,255,0.1)" }}>
-          <AIChatPanel
-            simType={project?.sim_type || "human_queue"}
-            currentGraph={{ nodes, edges }}
-            onGraphGenerated={(n, e) => onGraphChange(n, e)}
-          />
-        </div>
+        {/* Right: AI Chat (hidden in viewport mode) */}
+        {viewMode !== "viewport" && (
+          <div className="w-72 flex-shrink-0 border-l" style={{ borderColor: "rgba(0,242,255,0.1)" }}>
+            <AIChatPanel
+              simType={project?.sim_type || "human_queue"}
+              currentGraph={{ nodes, edges }}
+              onGraphGenerated={(n, e) => onGraphChange(n, e)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
