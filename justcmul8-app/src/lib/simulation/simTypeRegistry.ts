@@ -126,6 +126,11 @@ export const SIM_TYPE_REGISTRY: Record<SimTypeId, SimTypeConfig> = {
       { type: "service",  label: "Service Step", icon: "⚡", color: "var(--neon-cyan)",   desc: "Fixed processing step",        spriteKey: "service" },
       { type: "decision", label: "Route",        icon: "🔀", color: "var(--neon-purple)", desc: "Probabilistic routing",        spriteKey: "decision" },
       { type: "sink",     label: "Exit",         icon: "🚪", color: "var(--neon-red)",    desc: "Entity leaves, KPIs collected",spriteKey: "sink" },
+      { type: "store",    label: "Buffer/Store", icon: "📦", color: "var(--neon-pink)",   desc: "Items buffer (filter/priority)",spriteKey: "source" },
+      { type: "any_of",   label: "Any Of (OR)",  icon: "🔱", color: "var(--neon-yellow)", desc: "Wait for ANY upstream event",  spriteKey: "decision" },
+      { type: "all_of",   label: "All Of (AND)", icon: "⛓️", color: "var(--neon-yellow)", desc: "Wait for ALL upstream events", spriteKey: "decision" },
+      { type: "interrupter", label: "Interrupt", icon: "⚠️", color: "var(--neon-red)",    desc: "Interrupt a target process",   spriteKey: "decision" },
+      { type: "event_trigger", label: "Event",   icon: "🔔", color: "var(--neon-orange)", desc: "Triggers a global event",      spriteKey: "source" },
     ],
 
     subScenarios: [

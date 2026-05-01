@@ -329,6 +329,96 @@ function QueuePatienceProperties({ params, nodeId, onUpdate }: { params: any; no
   );
 }
 
+// ─── Store / Buffer Properties ──────────────────────────────────────────────────
+function StoreProperties({ params, nodeId, onUpdate }: { params: any; nodeId: string; onUpdate: (id: string, data: any) => void }) {
+  function setParam(key: string, value: any) {
+    onUpdate(nodeId, { params: { ...params, [key]: value } });
+  }
+
+  return (
+    <div className={sectionCls} style={sectionBorderStyle}>
+      <SectionHeading icon={Settings}>Buffer Settings</SectionHeading>
+      
+      <div>
+        <label className={labelCls}>Capacity (-1 for infinite)</label>
+        <input type="number" value={params?.capacity ?? -1} onChange={(e) => setParam("capacity", Number(e.target.value))} className={inputCls} style={inputStyle} />
+      </div>
+
+      <div className="flex items-center justify-between mt-3">
+        <label className={labelCls + " mb-0"}>Priority Retrieval</label>
+        <button
+          onClick={() => setParam("isPriority", !params?.isPriority)}
+          className="px-2 py-1 rounded text-[10px] font-mono border transition-colors"
+          style={{
+            background: params?.isPriority ? "rgba(0,242,255,0.2)" : "transparent",
+            borderColor: params?.isPriority ? "var(--neon-cyan)" : "rgba(255,255,255,0.1)",
+            color: params?.isPriority ? "var(--neon-cyan)" : "var(--text-muted)"
+          }}
+        >
+          {params?.isPriority ? "ON" : "OFF"}
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between mt-3">
+        <label className={labelCls + " mb-0"}>Enable Filter</label>
+        <button
+          onClick={() => setParam("filterEnabled", !params?.filterEnabled)}
+          className="px-2 py-1 rounded text-[10px] font-mono border transition-colors"
+          style={{
+            background: params?.filterEnabled ? "rgba(255,0,128,0.2)" : "transparent",
+            borderColor: params?.filterEnabled ? "#ff0080" : "rgba(255,255,255,0.1)",
+            color: params?.filterEnabled ? "#ff0080" : "var(--text-muted)"
+          }}
+        >
+          {params?.filterEnabled ? "ON" : "OFF"}
+        </button>
+      </div>
+
+      {params?.filterEnabled && (
+        <div className="bg-black/30 p-3 rounded mt-3 border space-y-3" style={{ borderColor: "rgba(255,0,128,0.3)" }}>
+          <div>
+            <label className={labelCls}>Property to Check</label>
+            <input type="text" placeholder="e.g. entityClass" value={params?.filterProperty || ""} onChange={(e) => setParam("filterProperty", e.target.value)} className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className={labelCls}>Operator</label>
+            <select value={params?.filterOperator || "=="} onChange={(e) => setParam("filterOperator", e.target.value)} className={selectCls} style={inputStyle}>
+              <option value="==">Equals (==)</option>
+              <option value="!=">Not Equals (!=)</option>
+              <option value=">">Greater Than (&gt;)</option>
+              <option value="<">Less Than (&lt;)</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Value</label>
+            <input type="text" placeholder="e.g. vip" value={params?.filterValue || ""} onChange={(e) => setParam("filterValue", e.target.value)} className={inputCls} style={inputStyle} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Interrupter Properties ──────────────────────────────────────────────────
+function InterrupterProperties({ params, nodeId, onUpdate }: { params: any; nodeId: string; onUpdate: (id: string, data: any) => void }) {
+  function setParam(key: string, value: any) {
+    onUpdate(nodeId, { params: { ...params, [key]: value } });
+  }
+  return (
+    <div className={sectionCls} style={sectionBorderStyle}>
+      <SectionHeading icon={Settings}>Interrupt Settings</SectionHeading>
+      <div>
+        <label className={labelCls}>Target Node ID</label>
+        <input type="text" placeholder="ID of node to interrupt" value={params?.targetNodeId || ""} onChange={(e) => setParam("targetNodeId", e.target.value)} className={inputCls} style={inputStyle} />
+      </div>
+      <div className="mt-3">
+        <label className={labelCls}>Cause Message</label>
+        <input type="text" placeholder="e.g. System Failure" value={params?.cause || ""} onChange={(e) => setParam("cause", e.target.value)} className={inputCls} style={inputStyle} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 export default function NodePropertiesPanel({ node, simType, onUpdate }: NodePropertiesPanelProps) {
   const config = SIM_TYPE_REGISTRY[simType as keyof typeof SIM_TYPE_REGISTRY];
@@ -373,7 +463,6 @@ export default function NodePropertiesPanel({ node, simType, onUpdate }: NodePro
 
 
 
-        {/* ── Node-type-specific properties ─────────────────────────────── */}
         {nodeType === "source" && (
           <SourceProperties params={params || {}} nodeId={node.id} onUpdate={onUpdate} />
         )}
@@ -382,8 +471,16 @@ export default function NodePropertiesPanel({ node, simType, onUpdate }: NodePro
           <QueuePatienceProperties params={params || {}} nodeId={node.id} onUpdate={onUpdate} />
         )}
 
+        {nodeType === "store" && (
+          <StoreProperties params={params || {}} nodeId={node.id} onUpdate={onUpdate} />
+        )}
+
+        {nodeType === "interrupter" && (
+          <InterrupterProperties params={params || {}} nodeId={node.id} onUpdate={onUpdate} />
+        )}
+
         {/* Generic params viewer for all other node types */}
-        {nodeType !== "source" && nodeType !== "queue" && params && Object.keys(params).length > 0 && (
+        {nodeType !== "source" && nodeType !== "queue" && nodeType !== "store" && nodeType !== "interrupter" && params && Object.keys(params).length > 0 && (
           <div>
             <label className={labelCls}>Simulation Parameters</label>
             <div className="bg-black/50 border rounded p-3 text-xs font-mono" style={{ borderColor: "rgba(0,242,255,0.1)" }}>

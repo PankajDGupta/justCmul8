@@ -96,8 +96,9 @@ export default function WorkspacePage() {
   const [project, setProject] = React.useState<Project | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [simState, setSimState] = React.useState<SimState>("idle");
-  const [speed, setSpeed] = React.useState(1);
-  const [duration, setDuration] = React.useState(1000);
+  const [speed, setSpeed] = React.useState(5);
+  const [duration, setDuration] = React.useState(100);
+  const [timeUnit, setTimeUnit] = React.useState<"seconds" | "minutes" | "hours" | "days">("minutes");
   const [saved, setSaved] = React.useState(true);
   const [nodes, setNodes] = React.useState<any[]>([]);
   const [edges, setEdges] = React.useState<any[]>([]);
@@ -370,9 +371,27 @@ export default function WorkspacePage() {
                 fontFamily: "var(--font-mono)",
                 outline: "none",
               }}
-              title="Simulation Duration (seconds)"
+              title="Simulation Duration"
             />
           </div>
+
+          {/* Time Unit */}
+          <select
+            value={timeUnit}
+            onChange={(e) => setTimeUnit(e.target.value as any)}
+            className="text-xs rounded px-1 py-0.5"
+            style={{
+              background: "rgba(0,0,0,0.5)",
+              border: "1px solid rgba(0,242,255,0.2)",
+              color: "var(--neon-cyan)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            <option value="seconds">secs</option>
+            <option value="minutes">mins</option>
+            <option value="hours">hrs</option>
+            <option value="days">days</option>
+          </select>
 
           {/* Speed */}
           <div className="flex items-center gap-1">
@@ -408,8 +427,8 @@ export default function WorkspacePage() {
             }}
           >
             <Timer size={11} style={{ color: "var(--neon-cyan)" }} />
-            <span style={{ color: "var(--neon-cyan)", fontSize: "0.7rem" }}>
-              {simTimeDisplay}s
+            <span style={{ color: "var(--neon-cyan)", fontSize: "0.7rem", minWidth: "60px" }}>
+              {simTimeDisplay} {timeUnit === "seconds" ? "s" : timeUnit === "minutes" ? "m" : timeUnit === "hours" ? "h" : "d"}
             </span>
             <span style={{ color: "var(--text-muted)", fontSize: "0.65rem" }}>|</span>
             <span style={{ color: "var(--neon-green)", fontSize: "0.65rem" }}>↑{arrivedDisplay}</span>

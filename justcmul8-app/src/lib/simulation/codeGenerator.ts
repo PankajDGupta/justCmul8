@@ -50,6 +50,8 @@ EDGES = json.loads(r"""{EDGES_JSON}""")
 log_buffer = []
 entity_counter = [0]
 stats = {}
+active_processes_by_node = {}
+global_events = {}
 
 def next_entity_id():
     entity_counter[0] += 1
@@ -182,7 +184,9 @@ def do_resource_service(env, eid, node_id, cfg, s, resources, queued_at):
         yield env.process(entity_process(env, eid, next_id, resources))
 
 # ── SimPy Processes ────────────────────────────────────────────────────────────
-def entity_process(env, eid, node_id, resources):
+def entity_process(env, eid, node_id, resources, entity_attrs=None):
+    if entity_attrs is None:
+        entity_attrs = {"id": eid, "priority": 3, "entityClass": "standard", "arrivalTime": env.now}
     cfg = NODE_CONFIG.get(node_id)
     if cfg is None:
         return
@@ -199,7 +203,7 @@ def entity_process(env, eid, node_id, resources):
         s["entitiesOut"] += 1
         next_id = get_next_target(node_id)
         if next_id:
-            yield env.process(entity_process(env, eid, next_id, resources))
+            yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
 
     elif node_type == "queue":
         log_event(env.now, eid, node_id, label, "queued")
@@ -254,7 +258,7 @@ def entity_process(env, eid, node_id, resources):
             s["currentDepth"] -= 1
             s["entitiesOut"] += 1
             if next_id:
-                yield env.process(entity_process(env, eid, next_id, resources))
+                yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
 
     elif node_type in ("resource", "priority_resource"):
         res = resources[node_id]
@@ -270,14 +274,26 @@ def entity_process(env, eid, node_id, resources):
             params.get("distribution", "exponential"),
             params.get("durationMean", 1)
         )
-        log_event(env.now, eid, node_id, label, "service_start")
-        yield env.timeout(svc_time)
-        log_event(env.now, eid, node_id, label, "service_end")
+        
+        def interruptible_delay(env, delay):
+            try:
+                log_event(env.now, eid, node_id, label, "service_start")
+                yield env.timeout(delay)
+                log_event(env.now, eid, node_id, label, "service_end")
+            except simpy.Interrupt as i:
+                log_event(env.now, eid, node_id, label, "interrupted")
+                
+        p = env.process(interruptible_delay(env, svc_time))
+        if node_id not in active_processes_by_node: active_processes_by_node[node_id] = {}
+        active_processes_by_node[node_id][eid] = p
+        yield p
+        if eid in active_processes_by_node[node_id]: del active_processes_by_node[node_id][eid]
+        
         s["currentDepth"] -= 1
         s["entitiesOut"] += 1
         next_id = get_next_target(node_id)
         if next_id:
-            yield env.process(entity_process(env, eid, next_id, resources))
+            yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
 
     elif node_type == "decision":
         log_event(env.now, eid, node_id, label, "routed")
@@ -285,19 +301,86 @@ def entity_process(env, eid, node_id, resources):
         s["entitiesOut"] += 1
         target_id = get_target_for_decision(node_id)
         if target_id:
-            yield env.process(entity_process(env, eid, target_id, resources))
+            yield env.process(entity_process(env, eid, target_id, resources, entity_attrs))
 
     elif node_type == "sink":
         log_event(env.now, eid, node_id, label, "completed")
         s["currentDepth"] -= 1
         s["entitiesOut"] += 1
 
+    elif node_type == "store":
+        store = resources.get(node_id)
+        params = cfg["params"]
+        if isinstance(store, simpy.PriorityStore):
+            item = simpy.PriorityItem(entity_attrs.get("priority", 3), entity_attrs)
+        else:
+            item = entity_attrs
+
+        yield store.put(item)
+        s["currentDepth"] = len(store.items)
+        
+        if isinstance(store, simpy.FilterStore):
+            prop = params.get("filterProperty", "entityClass")
+            op = params.get("filterOperator", "==")
+            val = params.get("filterValue", "")
+            def filter_func(x):
+                actual = x.get(prop, "") if isinstance(x, dict) else ""
+                if op == "==": return str(actual) == str(val)
+                if op == "!=": return str(actual) != str(val)
+                return True
+            got = yield store.get(filter_func)
+        else:
+            got = yield store.get()
+
+        s["currentDepth"] = len(store.items)
+        s["entitiesOut"] += 1
+        next_id = get_next_target(node_id)
+        if next_id:
+            yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
+
+    elif node_type == "event_trigger":
+        evt = global_events.get(node_id)
+        if evt and not evt.triggered:
+            evt.succeed()
+        s["currentDepth"] -= 1
+        s["entitiesOut"] += 1
+        next_id = get_next_target(node_id)
+        if next_id:
+            yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
+
+    elif node_type in ("any_of", "all_of"):
+        sources = [e["source"] for e in EDGES if e["target"] == node_id]
+        evts = [global_events[src] for src in sources if src in global_events]
+        if evts:
+            if node_type == "any_of":
+                yield env.any_of(evts)
+            else:
+                yield env.all_of(evts)
+        s["currentDepth"] -= 1
+        s["entitiesOut"] += 1
+        next_id = cfg["params"].get("targetId") or get_next_target(node_id)
+        if next_id:
+            yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
+
+    elif node_type == "interrupter":
+        target = cfg["params"].get("targetNodeId")
+        cause = cfg["params"].get("cause", "Interrupted")
+        if target and target in active_processes_by_node:
+            for p_eid, p in list(active_processes_by_node[target].items()):
+                if p.is_alive:
+                    p.interrupt(cause)
+        s["currentDepth"] -= 1
+        s["entitiesOut"] += 1
+        next_id = get_next_target(node_id)
+        if next_id:
+            yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
+
     else:
         s["currentDepth"] -= 1
         s["entitiesOut"] += 1
         next_id = get_next_target(node_id)
         if next_id:
-            yield env.process(entity_process(env, eid, next_id, resources))
+            yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
 
 
 def source_process(env, node_id, resources, total_arrived):
@@ -328,7 +411,7 @@ def source_process(env, node_id, resources, total_arrived):
         log_event(env.now, eid, node_id, cfg["label"], "arrived")
         targets = get_next_targets(node_id, routing_mode)
         for target_id in targets:
-            env.process(entity_process(env, eid, target_id, resources))
+            env.process(entity_process(env, eid, target_id, resources, entity_attrs))
 
     count = 0
 
@@ -399,9 +482,25 @@ def run_simulation():
     init_stats()
 
     for nid, cfg in NODE_CONFIG.items():
-        if cfg["nodeType"] in ("resource", "priority_resource"):
+        n_type = cfg["nodeType"]
+        if n_type in ("resource", "priority_resource"):
             cap = cfg["params"].get("capacity", 1)
-            resources[nid] = simpy.Resource(env, capacity=max(1, cap))
+            is_pre = cfg["params"].get("isPreemptive", False)
+            if n_type == "priority_resource" or is_pre:
+                resources[nid] = simpy.PriorityResource(env, capacity=max(1, cap))
+            else:
+                resources[nid] = simpy.Resource(env, capacity=max(1, cap))
+        elif n_type == "store":
+            cap = cfg["params"].get("capacity", -1)
+            c = max(1, cap) if cap > 0 else float('inf')
+            if cfg["params"].get("isPriority", False):
+                resources[nid] = simpy.PriorityStore(env, capacity=c)
+            elif cfg["params"].get("filterEnabled", False):
+                resources[nid] = simpy.FilterStore(env, capacity=c)
+            else:
+                resources[nid] = simpy.Store(env, capacity=c)
+        elif n_type in ("event_trigger", "any_of", "all_of"):
+            global_events[nid] = env.event()
 
     for nid, cfg in NODE_CONFIG.items():
         if cfg["nodeType"] == "source":

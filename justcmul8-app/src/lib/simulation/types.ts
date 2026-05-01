@@ -26,7 +26,10 @@ export type NodeType =
   | "event_trigger"    // monitors conditions, fires events
   | "priority_resource"// preemptive resource for high-priority tasks
   | "channel"          // transmission medium with propagation delay
-  | "broadcaster";     // one-to-many fan-out (broadcast pipe)
+  | "broadcaster"      // one-to-many fan-out (broadcast pipe)
+  | "any_of"           // simpy.events.AnyOf
+  | "all_of"           // simpy.events.AllOf
+  | "interrupter";     // triggers process.interrupt()
 
 export type DistributionType =
   | "exponential"
@@ -136,6 +139,24 @@ export interface ContainerParams {
   fillRate: number;
 }
 
+export interface StoreParams {
+  capacity: number;
+  isPriority?: boolean;
+  filterEnabled?: boolean;
+  filterProperty?: string;
+  filterOperator?: "==" | "!=" | ">" | "<" | ">=" | "<=";
+  filterValue?: string | number;
+}
+
+export interface InterrupterParams {
+  targetNodeId?: string;
+  cause?: string;
+}
+
+export interface SyncRouterParams {
+  targetId?: string;
+}
+
 // ── Network/Signal Node Params ────────────────────────────────────────────────
 
 /**
@@ -177,6 +198,9 @@ export type NodeParams =
   | ContainerParams
   | ChannelParams
   | BroadcasterParams
+  | StoreParams
+  | InterrupterParams
+  | SyncRouterParams
   | Record<string, unknown>;
 
 // ─── Graph Structures (used by engine + layout) ───────────────────────────────
@@ -210,6 +234,7 @@ export interface SimParams {
   durationSeconds: number;   // virtual sim time to run
   speedMultiplier: number;   // 1x, 2x, 5x, 10x wall-clock
   tickIntervalSeconds: number; // how often to emit progress ticks
+  simTimeUnit?: "seconds" | "minutes" | "hours" | "days";
 }
 
 // ─── Live Tick Data (emitted during run) ─────────────────────────────────────
