@@ -283,8 +283,16 @@ class GraphSimulator {
       return;
     }
 
-    // Single path: first edge
-    const target=this.nodeMap.get(edges[0].target);
+    // Single path or primitive load balancing for multiple edges
+    let nextEdge = edges[0];
+    if (edges.length > 1) {
+      if ((node as any)._rr === undefined) (node as any)._rr = 0;
+      const idx = (node as any)._rr % edges.length;
+      (node as any)._rr++;
+      nextEdge = edges[idx];
+    }
+    
+    const target=this.nodeMap.get(nextEdge.target);
     if(target) this.processAtNode(eid,target,arrivalTime,onDone);
     else onDone();
   }

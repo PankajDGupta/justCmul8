@@ -441,6 +441,23 @@ body {
 .bg-secondary-cyber { background-color: var(--bg-secondary); }
 
 /* ═══════════════════════════════════════════════════
+   TOAST / SLIDE-UP ANIMATION
+═══════════════════════════════════════════════════ */
+@keyframes slide-up-toast {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+.animate-slide-up {
+  animation: slide-up-toast 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ═══════════════════════════════════════════════════
    REACT FLOW OVERRIDES
 ═══════════════════════════════════════════════════ */
 .react-flow__background {
@@ -464,12 +481,44 @@ body {
 .react-flow__controls button:hover {
   background: rgba(0, 242, 255, 0.1) !important;
 }
-.react-flow__edge-path {
-  stroke: rgba(0, 242, 255, 0.5) !important;
+
+/* Handle connection points */
+.react-flow__handle {
+  transition: all 0.2s ease !important;
+}
+.react-flow__handle:hover {
+  transform: scale(1.4) !important;
+  box-shadow: 0 0 10px var(--neon-cyan), 0 0 20px rgba(0, 242, 255, 0.3) !important;
+}
+.react-flow__handle.connecting {
+  background: var(--neon-cyan) !important;
+  box-shadow: 0 0 12px var(--neon-cyan), 0 0 24px rgba(0, 242, 255, 0.4) !important;
+}
+
+/* Connection line while dragging */
+.react-flow__connection-path {
+  stroke: rgba(0, 242, 255, 0.7) !important;
   stroke-width: 2 !important;
+  stroke-dasharray: 6 3 !important;
+}
+
+/* Edge interaction area */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--neon-cyan) !important;
 }
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--neon-cyan) !important;
+}
+
+/* Node wrapper hover glow */
+.cyber-node-wrapper {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease !important;
+}
+.react-flow__node:hover .cyber-node-wrapper {
+  transform: translateY(-1px);
+}
+.react-flow__node.selected .cyber-node-wrapper {
+  border-color: rgba(0, 242, 255, 0.8) !important;
 }
 
 /* ═══════════════════════════════════════════════════

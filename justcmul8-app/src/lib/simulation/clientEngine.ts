@@ -12,31 +12,31 @@ export class ClientSimEngine implements SimulationEngine {
   private worker: Worker | null = null;
   private running = false;
 
-  private onTickCallback?: (tick: SimTick) => void;
-  private onCompleteCallback?: (result: SimResult) => void;
-  private onErrorCallback?: (error: string) => void;
+  private onTickCallbacks = new Set<(tick: SimTick) => void>();
+  private onCompleteCallbacks = new Set<(result: SimResult) => void>();
+  private onErrorCallbacks = new Set<(error: string) => void>();
 
   /** Start or restart the simulation with new params */
   start(params: SimParams): void {
     this.stop(); // clear old worker if exists
 
     // Initialize Web Worker
-    this.worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
+    this.worker = new Worker(new URL("./legacyWorker.ts", import.meta.url), { type: "module" });
 
     this.worker.onmessage = (e: MessageEvent) => {
       const msg = e.data;
       switch (msg.type) {
         case "tick":
-          if (this.onTickCallback) this.onTickCallback(msg.data);
+          this.onTickCallbacks.forEach(cb => cb(msg.data));
           break;
         case "complete":
           this.running = false;
-          if (this.onCompleteCallback) this.onCompleteCallback(msg.data);
+          this.onCompleteCallbacks.forEach(cb => cb(msg.data));
           this.terminateWorker();
           break;
         case "error":
           this.running = false;
-          if (this.onErrorCallback) this.onErrorCallback(msg.message);
+          this.onErrorCallbacks.forEach(cb => cb(msg.message));
           this.terminateWorker();
           break;
       }
@@ -44,7 +44,7 @@ export class ClientSimEngine implements SimulationEngine {
 
     this.worker.onerror = (e) => {
         this.running = false;
-        if (this.onErrorCallback) this.onErrorCallback(e.message);
+        this.onErrorCallbacks.forEach(cb => cb(e.message));
         this.terminateWorker();
     }
 
@@ -53,15 +53,15 @@ export class ClientSimEngine implements SimulationEngine {
   }
 
   onTick(callback: (tick: SimTick) => void): void {
-    this.onTickCallback = callback;
+    this.onTickCallbacks.add(callback);
   }
 
   onComplete(callback: (result: SimResult) => void): void {
-    this.onCompleteCallback = callback;
+    this.onCompleteCallbacks.add(callback);
   }
 
   onError(callback: (error: string) => void): void {
-    this.onErrorCallback = callback;
+    this.onErrorCallbacks.add(callback);
   }
 
   pause(): void {

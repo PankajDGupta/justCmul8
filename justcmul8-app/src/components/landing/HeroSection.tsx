@@ -178,17 +178,23 @@ export default function HeroSection() {
 }
 
 function Particles() {
-  const particles = React.useMemo(
-    () =>
-      Array.from({ length: 20 }, (_, i) => ({
-        id: i,
-        left: `${Math.random() * 100}%`,
-        delay: `${Math.random() * 8}s`,
-        duration: `${6 + Math.random() * 6}s`,
-        size: `${2 + Math.random() * 4}px`,
-      })),
-    []
-  );
+  const [mounted, setMounted] = React.useState(false);
+  const particles = React.useMemo(() => {
+    if (!mounted) return [];
+    return Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      delay: `${Math.random() * 8}s`,
+      duration: `${6 + Math.random() * 6}s`,
+      size: `${2 + Math.random() * 4}px`,
+    }));
+  }, [mounted]);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">

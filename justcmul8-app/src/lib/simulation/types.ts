@@ -39,10 +39,39 @@ export type QueueDiscipline = "FIFO" | "LIFO" | "PRIORITY";
 
 // ─── Node Parameters (per nodeType) ──────────────────────────────────────────
 
+export interface ArrivalScheduleEntry {
+  simTime: number;   // sim-time at which this batch arrives
+  count: number;     // number of entities in this batch
+}
+
+export type RoutingMode = "round_robin" | "broadcast" | "priority";
+export type EntityClass = "customer" | "patient" | "staff" | "vip" | "standard" | string;
+export type PriorityLevel = "standard" | "priority" | "urgent";
+
 export interface SourceParams {
-  arrivalRate: number;          // entities per sim-time unit
-  distribution: DistributionType;
-  maxEntities?: number;         // optional cap
+  // ── Arrival Timing ─────────────────────────────────────────────────────────
+  arrivalRate: number;              // entities per sim-time unit (inter-arrival mean = 1/rate)
+  distribution: DistributionType;  // distribution for inter-arrival sampling
+
+  // ── Cap / Infinite ─────────────────────────────────────────────────────────
+  maxEntities?: number;             // hard cap on total entities spawned; omit = infinite
+  infiniteArrivals?: boolean;       // explicitly mark as unbounded (UI toggle)
+
+  // ── Arrival Schedule (optional timetable) ──────────────────────────────────
+  /** If set, entities spawn at specific sim-times rather than via inter-arrival rate. */
+  schedule?: ArrivalScheduleEntry[];
+  /** If true, the schedule loops/repeats after all entries have fired. */
+  scheduleRecurring?: boolean;
+
+  // ── Entity Attributes ──────────────────────────────────────────────────────
+  /** Default priority assigned to every entity from this source. */
+  priorityLevel?: PriorityLevel;
+  /** Logical category of entities (drives downstream routing rules). */
+  entityClass?: EntityClass;
+
+  // ── Routing ────────────────────────────────────────────────────────────────
+  /** How entities are distributed across multiple outgoing edges. */
+  routingMode?: RoutingMode;
 }
 
 export interface QueueParams {
@@ -286,4 +315,14 @@ export interface SimulationEngine {
 
   /** Check if currently running */
   isRunning(): boolean;
+}
+
+// ─── Pyodide Runtime Status ───────────────────────────────────────────────────
+// Emitted by PyodideSimEngine so the UI can show a loading indicator
+// while the ~10 MB WASM binary is being downloaded and initialized.
+
+export interface PyodideStatus {
+  phase: "idle" | "loading_runtime" | "loading_simpy" | "ready" | "error";
+  message?: string;
+  progress?: number;
 }
