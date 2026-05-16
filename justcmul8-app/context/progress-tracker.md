@@ -37,6 +37,30 @@ NodePropertiesPanel exposes their full configuration surfaces.
   bootstrapping, script execution, tick/result relay.
 - Distribution helpers (`distributions.ts`).
 - `SimulationEngine` interface + `clientEngine.ts` adapter.
+- **[2026-05-16 19:31 IST] Source Node — Full Spec Implementation**
+  Files changed: `types.ts`, `codeGenerator.ts`, `SourcePropertiesPanel.tsx`
+  (new), `NodePropertiesPanel.tsx`.
+  Spec checklist:
+  - [x] HPP arrivals (exponential inter-arrival) — was present, verified.
+  - [x] NHPP – Thinning (Lewis-Shedler) via `_nhpp_thinning` generator.
+  - [x] NHPP – Non-linear Time Transform via `_nhpp_time_transform` (Λ⁻¹ bisection).
+  - [x] Table-Driven arrivals (schedule + recurring) — refactored into `spawn_batch`.
+  - [x] Entities per Arrival — `entitiesPerArrival` + `batchDistribution`
+        (deterministic / poisson / uniform ±1).
+  - [x] Attribute Binding (Labels) — `entityLabels` KV list stamped on entity dict.
+  - [x] Probabilistic Part Mix (RandomRow) — `partMix` weighted table,
+        cumulative CDF sampling per arrival.
+  - [x] Lifecycle Hooks — `onBeforeArrival`, `onAtExit`, `onDiscard` Python
+        snippets executed via `exec()` in sandboxed scope.
+  - [x] TimeMeasureStart — `timeMeasureStart` bool stamps `arrivalTime` on entity.
+  - [x] Max Arrivals cap — enforced per-entity inside `spawn_batch`.
+  - [x] Source Duration Limit — `durationLimit` checked in `_should_stop()`.
+  - [x] Shift Synchronisation — `shiftWindows` list; arrivals blocked outside
+        windows, `onDiscard` hook fires with reason `shift_blocked`.
+  - [x] UI — dedicated `SourcePropertiesPanel.tsx` with sections for all above.
+  - [x] `npx tsc --noEmit` → exit 0 (zero type errors).
+  - [ ] NHPP arrivals correctly follow time-varying schedules — runtime
+        validation still needed (requires Pyodide end-to-end test).
 
 ## In Progress
 
@@ -44,6 +68,7 @@ NodePropertiesPanel exposes their full configuration surfaces.
   code generator.
 - SimResultsPanel: timeline chart (queue depth over sim time).
 - Workspace page: sim-time unit selector UX polish.
+- Source Node NHPP runtime validation (Pyodide end-to-end test).
 
 ## Next Up
 
@@ -60,6 +85,9 @@ NodePropertiesPanel exposes their full configuration surfaces.
   caching would save ~8–10 s per session after first load.
 - What is the target maximum `simDuration` before the WASM worker hits memory
   pressure in-browser?
+- For NHPP time-transform, bisection upper-bound is `DURATION`; if arrivals
+  cluster near the end this may produce very long waits. A tighter upper bound
+  heuristic may be needed.
 
 ## Architecture Decisions
 
@@ -72,6 +100,9 @@ NodePropertiesPanel exposes their full configuration surfaces.
   both parent and child.
 - **CSS custom-property design tokens**: Avoids hardcoded hex values scattering
   across components and enables future theming with a single token-layer change.
+- **SourcePropertiesPanel.tsx extracted**: Kept `NodePropertiesPanel.tsx` from
+  growing unboundedly; Source node config is now self-contained and independently
+  testable.
 
 ## Session Notes
 
@@ -81,3 +112,6 @@ NodePropertiesPanel exposes their full configuration surfaces.
   is NOT wired into the current UI. Do not modify it.
 - The `ts_errors.log` at the project root records the last TypeScript error
   snapshot — check it before marking any unit complete.
+- Source Node `_OldSourcePropertiesInline` stub in `NodePropertiesPanel.tsx`
+  is dead code — safe to delete after a review cycle.
+

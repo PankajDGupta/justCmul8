@@ -1,7 +1,8 @@
 import React from "react";
 import type { Node } from "@xyflow/react";
 import { SIM_TYPE_REGISTRY } from "@/lib/simulation/simTypeRegistry";
-import { Settings, Image as ImageIcon, Type, Clock, Users, Route, Plus, Trash2 } from "lucide-react";
+import { Settings, Image as ImageIcon, Type, Clock, Users, Route, Plus, Trash2, Tag, Zap, BarChart2, Calendar, Code, Shuffle } from "lucide-react";
+import SourcePropertiesPanel from "./SourcePropertiesPanel";
 
 interface NodePropertiesPanelProps {
   node: Node;
@@ -27,8 +28,13 @@ function SectionHeading({ icon: Icon, children }: { icon: any; children: React.R
   );
 }
 
-// ─── Source Node Properties ────────────────────────────────────────────────────
+// ─── Source Node Properties → delegated to SourcePropertiesPanel ─────────────
 function SourceProperties({ params, nodeId, onUpdate }: { params: any; nodeId: string; onUpdate: (id: string, data: any) => void }) {
+  return <SourcePropertiesPanel params={params} nodeId={nodeId} onUpdate={onUpdate} />;
+}
+
+/*  ↓ old inline implementation removed – see SourcePropertiesPanel.tsx  */
+function _OldSourcePropertiesInline({ params, nodeId, onUpdate }: { params: any; nodeId: string; onUpdate: (id: string, data: any) => void }) {
   function setParam(key: string, value: any) {
     onUpdate(nodeId, { params: { ...params, [key]: value } });
   }
