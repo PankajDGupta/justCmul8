@@ -36,7 +36,9 @@ export type DistributionType =
   | "uniform"
   | "normal"
   | "deterministic"
-  | "poisson";
+  | "poisson"
+  | "nhpp_thinning"
+  | "nhpp_time_transform";
 
 export type QueueDiscipline = "FIFO" | "LIFO" | "PRIORITY";
 
@@ -51,14 +53,46 @@ export type RoutingMode = "round_robin" | "broadcast" | "priority";
 export type EntityClass = "customer" | "patient" | "staff" | "vip" | "standard" | string;
 export type PriorityLevel = "standard" | "priority" | "urgent";
 
+/** A key-value label stamped on every entity at creation (Attribute Binding). */
+export interface EntityLabel {
+  key: string;
+  value: string;
+}
+
+/** One weighted type in the probabilistic part-mix table. */
+export interface PartMixEntry {
+  entityClass: EntityClass;
+  weight: number;  // relative weight (0–100); engine normalises to probability
+}
+
+/** One shift window: arrivals are BLOCKED outside these periods. */
+export interface ShiftWindow {
+  startTime: number;  // sim-time start of active window
+  endTime: number;    // sim-time end of active window
+}
+
+/** NHPP piecewise rate table entry (for thinning / time-transform). */
+export interface NhppRateEntry {
+  simTime: number;   // left edge of time window
+  rate: number;      // λ(t) arrival rate for this window
+}
+
 export interface SourceParams {
   // ── Arrival Timing ─────────────────────────────────────────────────────────
   arrivalRate: number;              // entities per sim-time unit (inter-arrival mean = 1/rate)
   distribution: DistributionType;  // distribution for inter-arrival sampling
 
+  // ── NHPP (Non-Homogeneous Poisson Process) ─────────────────────────────────
+  /** Piecewise rate table: λ(t) per time window. Used when distribution = nhpp_* */
+  nhppRates?: NhppRateEntry[];
+  /** Majorizing (max) rate for Thinning algorithm. Auto-computed if omitted. */
+  nhppMajorizingRate?: number;
+
   // ── Cap / Infinite ─────────────────────────────────────────────────────────
   maxEntities?: number;             // hard cap on total entities spawned; omit = infinite
   infiniteArrivals?: boolean;       // explicitly mark as unbounded (UI toggle)
+  /** Stop spawning after this many sim-time units (independent of global sim duration). */
+  durationLimit?: number;
 
   // ── Arrival Schedule (optional timetable) ──────────────────────────────────
   /** If set, entities spawn at specific sim-times rather than via inter-arrival rate. */
@@ -66,11 +100,39 @@ export interface SourceParams {
   /** If true, the schedule loops/repeats after all entries have fired. */
   scheduleRecurring?: boolean;
 
+  // ── Batch / Entities per Arrival ───────────────────────────────────────────
+  /** Number of entities spawned per arrival event. Defaults to 1. */
+  entitiesPerArrival?: number;
+  /** If set, sample batch size from this distribution (mean = entitiesPerArrival). */
+  batchDistribution?: "deterministic" | "poisson" | "uniform";
+
   // ── Entity Attributes ──────────────────────────────────────────────────────
   /** Default priority assigned to every entity from this source. */
   priorityLevel?: PriorityLevel;
   /** Logical category of entities (drives downstream routing rules). */
   entityClass?: EntityClass;
+  /** Custom key-value labels stamped on each entity at creation (Attribute Binding). */
+  entityLabels?: EntityLabel[];
+
+  // ── Probabilistic Part Mix ─────────────────────────────────────────────────
+  /** If set, entity class is randomly drawn from this weighted table each arrival. */
+  partMix?: PartMixEntry[];
+
+  // ── Lifecycle Hooks (programmatic) ─────────────────────────────────────────
+  /** Python snippet executed before each arrival (setup / env checks). */
+  onBeforeArrival?: string;
+  /** Python snippet executed when entity exits source (initialisation). */
+  onAtExit?: string;
+  /** Python snippet executed when entity is discarded (cap reached / shift ended). */
+  onDiscard?: string;
+
+  // ── KPI Profiling ──────────────────────────────────────────────────────────
+  /** If true, stamp entity with arrivalTime for lead-time KPI tracking. */
+  timeMeasureStart?: boolean;
+
+  // ── Shift Synchronisation ──────────────────────────────────────────────────
+  /** If set, arrivals are blocked outside these sim-time windows. */
+  shiftWindows?: ShiftWindow[];
 
   // ── Routing ────────────────────────────────────────────────────────────────
   /** How entities are distributed across multiple outgoing edges. */
