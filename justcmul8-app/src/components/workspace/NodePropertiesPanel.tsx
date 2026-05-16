@@ -274,64 +274,118 @@ function _OldSourcePropertiesInline({ params, nodeId, onUpdate }: { params: any;
   );
 }
 
-// ─── Queue Patience Properties (Bank Renege) ──────────────────────────────────
-function QueuePatienceProperties({ params, nodeId, onUpdate }: { params: any; nodeId: string; onUpdate: (id: string, data: any) => void }) {
-  return (
-    <div className={sectionCls} style={sectionBorderStyle}>
-      <SectionHeading icon={Clock}>Queue Patience (Renege)</SectionHeading>
+// ─── Queue Properties ────────────────────────────────────────────────────────────
+function QueueProperties({ params, nodeId, onUpdate }: { params: any; nodeId: string; onUpdate: (id: string, data: any) => void }) {
+  function setParam(key: string, value: any) {
+    onUpdate(nodeId, { params: { ...params, [key]: value } });
+  }
 
-      <div>
-        <label className={labelCls}>Patience Distribution</label>
-        <select
-          value={params?.patienceDistribution || "none"}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "none") {
-              const newParams = { ...params };
-              delete newParams.patienceDistribution;
-              delete newParams.patienceTimeout;
-              delete newParams.patienceMin;
-              delete newParams.patienceMax;
-              onUpdate(nodeId, { params: newParams });
-            } else {
-              onUpdate(nodeId, { params: { ...params, patienceDistribution: val, patienceMin: 1, patienceMax: 3 } });
-            }
-          }}
-          className={selectCls} style={inputStyle}
-        >
-          <option value="none">Infinite (No Renege)</option>
-          <option value="uniform">Uniform (Min/Max)</option>
-          <option value="exponential">Exponential (Mean)</option>
-          <option value="deterministic">Deterministic (Fixed)</option>
-        </select>
+  return (
+    <>
+      {/* ── 1. Capacity and Discipline ─────────────────────────────────────── */}
+      <div className={sectionCls} style={sectionBorderStyle}>
+        <SectionHeading icon={Settings}>Capacity & Discipline</SectionHeading>
+        
+        <div>
+          <label className={labelCls}>Capacity (-1 for unlimited)</label>
+          <input type="number" value={params?.capacity ?? -1} onChange={(e) => setParam("capacity", Number(e.target.value))} className={inputCls} style={inputStyle} />
+        </div>
+        
+        <div className="mt-3">
+          <label className={labelCls}>Discipline</label>
+          <select value={params?.discipline || "FIFO"} onChange={(e) => setParam("discipline", e.target.value)} className={selectCls} style={inputStyle}>
+            <option value="FIFO">FIFO (First-In, First-Out)</option>
+            <option value="LIFO">LIFO (Last-In, First-Out)</option>
+            <option value="PRIORITY">Priority</option>
+          </select>
+        </div>
       </div>
 
-      {params?.patienceDistribution === "uniform" && (
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelCls}>Min Patience</label>
-            <input type="number" value={params?.patienceMin || 1}
-              onChange={(e) => onUpdate(nodeId, { params: { ...params, patienceMin: Number(e.target.value) } })}
-              className={inputCls} style={inputStyle} />
-          </div>
-          <div>
-            <label className={labelCls}>Max Patience</label>
-            <input type="number" value={params?.patienceMax || 3}
-              onChange={(e) => onUpdate(nodeId, { params: { ...params, patienceMax: Number(e.target.value) } })}
-              className={inputCls} style={inputStyle} />
-          </div>
-        </div>
-      )}
+      {/* ── 2. Patience (Reneging) ─────────────────────────────────────────── */}
+      <div className={sectionCls} style={sectionBorderStyle}>
+        <SectionHeading icon={Clock}>Patience (Renege)</SectionHeading>
 
-      {(params?.patienceDistribution === "exponential" || params?.patienceDistribution === "deterministic") && (
         <div>
-          <label className={labelCls}>Patience Timeout (Mean)</label>
-          <input type="number" value={params?.patienceTimeout || 5}
-            onChange={(e) => onUpdate(nodeId, { params: { ...params, patienceTimeout: Number(e.target.value) } })}
-            className={inputCls} style={inputStyle} />
+          <label className={labelCls}>Patience Distribution</label>
+          <select
+            value={params?.patienceDistribution || "none"}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "none") {
+                const newParams = { ...params };
+                delete newParams.patienceDistribution;
+                delete newParams.patienceTimeout;
+                delete newParams.patienceMin;
+                delete newParams.patienceMax;
+                onUpdate(nodeId, { params: newParams });
+              } else {
+                onUpdate(nodeId, { params: { ...params, patienceDistribution: val, patienceMin: 1, patienceMax: 3 } });
+              }
+            }}
+            className={selectCls} style={inputStyle}
+          >
+            <option value="none">Infinite (No Renege)</option>
+            <option value="uniform">Uniform (Min/Max)</option>
+            <option value="exponential">Exponential (Mean)</option>
+            <option value="deterministic">Deterministic (Fixed)</option>
+          </select>
         </div>
-      )}
-    </div>
+
+        {params?.patienceDistribution === "uniform" && (
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <div>
+              <label className={labelCls}>Min Patience</label>
+              <input type="number" value={params?.patienceMin || 1}
+                onChange={(e) => setParam("patienceMin", Number(e.target.value))}
+                className={inputCls} style={inputStyle} />
+            </div>
+            <div>
+              <label className={labelCls}>Max Patience</label>
+              <input type="number" value={params?.patienceMax || 3}
+                onChange={(e) => setParam("patienceMax", Number(e.target.value))}
+                className={inputCls} style={inputStyle} />
+            </div>
+          </div>
+        )}
+
+        {(params?.patienceDistribution === "exponential" || params?.patienceDistribution === "deterministic") && (
+          <div className="mt-3">
+            <label className={labelCls}>Patience Timeout (Mean)</label>
+            <input type="number" value={params?.patienceTimeout || 5}
+              onChange={(e) => setParam("patienceTimeout", Number(e.target.value))}
+              className={inputCls} style={inputStyle} />
+          </div>
+        )}
+      </div>
+
+      {/* ── 3. Sold-Out / Capacity Broadcast ───────────────────────────────── */}
+      <div className={sectionCls} style={sectionBorderStyle}>
+        <SectionHeading icon={Zap}>Sold-Out / Broadcast</SectionHeading>
+
+        <div>
+          <label className={labelCls}>Sold Out Threshold</label>
+          <input type="number" placeholder="e.g. 0" value={params?.soldOutThreshold ?? ""} onChange={(e) => setParam("soldOutThreshold", e.target.value === "" ? undefined : Number(e.target.value))} className={inputCls} style={inputStyle} />
+          <p className="text-[10px] text-gray-500 mt-1">Leave empty to disable. Triggers when downstream capacity &lt;= this value.</p>
+        </div>
+
+        {params?.soldOutThreshold !== undefined && (
+          <div className="flex items-center justify-between mt-3">
+            <label className={labelCls + " mb-0"}>Broadcast Renege</label>
+            <button
+              onClick={() => setParam("broadcastRenege", !params?.broadcastRenege)}
+              className="px-2 py-1 rounded text-[10px] font-mono border transition-colors"
+              style={{
+                background: params?.broadcastRenege ? "rgba(255,0,128,0.2)" : "transparent",
+                borderColor: params?.broadcastRenege ? "#ff0080" : "rgba(255,255,255,0.1)",
+                color: params?.broadcastRenege ? "#ff0080" : "var(--text-muted)"
+              }}
+            >
+              {params?.broadcastRenege ? "ON" : "OFF"}
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -474,7 +528,7 @@ export default function NodePropertiesPanel({ node, simType, onUpdate }: NodePro
         )}
 
         {nodeType === "queue" && (
-          <QueuePatienceProperties params={params || {}} nodeId={node.id} onUpdate={onUpdate} />
+          <QueueProperties params={params || {}} nodeId={node.id} onUpdate={onUpdate} />
         )}
 
         {nodeType === "store" && (

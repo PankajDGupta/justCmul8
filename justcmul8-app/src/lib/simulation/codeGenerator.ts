@@ -207,13 +207,24 @@ def entity_process(env, eid, node_id, resources, entity_attrs=None):
             yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
 
     elif node_type == "queue":
+        params = cfg.get("params", {})
+        
+        # ── 1. Capacity Check ──
+        capacity = params.get("capacity", -1)
+        if capacity != -1 and s["currentDepth"] > capacity:
+            log_event(env.now, eid, node_id, label, "rejected")
+            s["currentDepth"] -= 1
+            return
+
         log_event(env.now, eid, node_id, label, "queued")
         next_id = get_next_target(node_id)
         
-        # If queue is connected to a resource, apply patience timeout here
+        # If queue is connected to a resource, apply patience timeout and discipline here
         if next_id and NODE_CONFIG.get(next_id, {}).get("nodeType") in ("resource", "priority_resource"):
-            params = cfg.get("params", {})
             dist = params.get("patienceDistribution", "none")
+            discipline = params.get("discipline", "FIFO")
+            sold_out_threshold = params.get("soldOutThreshold", None)
+            broadcast_renege = params.get("broadcastRenege", False)
             
             res_node_id = next_id
             res_cfg = NODE_CONFIG[res_node_id]
@@ -224,37 +235,63 @@ def entity_process(env, eid, node_id, resources, entity_attrs=None):
             res_s["entitiesIn"] += 1
             res_s["currentDepth"] += 1
             
-            with res.request() as req:
-                if dist != "none":
-                    if dist == "uniform":
-                        p_min = params.get("patienceMin", 1)
-                        p_max = params.get("patienceMax", 3)
-                        patience = random.uniform(p_min, p_max)
-                    elif dist == "exponential":
-                        mean = params.get("patienceTimeout", 5)
-                        patience = random.expovariate(1.0 / mean) if mean > 0 else 0
-                    elif dist == "deterministic":
-                        patience = params.get("patienceTimeout", 5)
-                    else:
-                        patience = 999999
-                        
-                    results = yield req | env.timeout(patience)
-                    
-                    if req in results:
-                        s["currentDepth"] -= 1
-                        s["entitiesOut"] += 1
-                        yield env.process(do_resource_service(env, eid, res_node_id, res_cfg, res_s, resources, queued_at))
-                    else:
-                        log_event(env.now, eid, node_id, label, "reneged")
-                        s["currentDepth"] -= 1
-                        s["renegeCount"] = s.get("renegeCount", 0) + 1
-                        res_s["currentDepth"] -= 1
-                        return
+            # Determine Request Priority based on Discipline
+            if discipline == "FIFO":
+                req_pri = env.now
+            elif discipline == "LIFO":
+                req_pri = -env.now
+            elif discipline == "PRIORITY":
+                req_pri = entity_attrs.get("priority", 3) + (env.now / 1000000.0)
+            else:
+                req_pri = env.now
+                
+            req = res.request(priority=req_pri)
+            wait_events = [req]
+            
+            # Patience setup
+            if dist != "none":
+                if dist == "uniform":
+                    patience = random.uniform(params.get("patienceMin", 1), params.get("patienceMax", 3))
+                elif dist == "exponential":
+                    mean = params.get("patienceTimeout", 5)
+                    patience = random.expovariate(1.0 / mean) if mean > 0 else 0
+                elif dist == "deterministic":
+                    patience = params.get("patienceTimeout", 5)
                 else:
-                    yield req
-                    s["currentDepth"] -= 1
-                    s["entitiesOut"] += 1
-                    yield env.process(do_resource_service(env, eid, res_node_id, res_cfg, res_s, resources, queued_at))
+                    patience = float('inf')
+                wait_events.append(env.timeout(patience))
+                
+            # Sold-Out Event
+            if sold_out_threshold is not None and broadcast_renege:
+                if node_id not in global_events:
+                    global_events[node_id] = env.event()
+                wait_events.append(global_events[node_id])
+                
+            results = yield env.any_of(wait_events)
+            
+            if req in results:
+                # Acquired resource!
+                s["currentDepth"] -= 1
+                s["entitiesOut"] += 1
+                
+                # Check sold-out condition
+                if sold_out_threshold is not None:
+                    remaining = res.capacity - res.count
+                    if remaining <= sold_out_threshold:
+                        if broadcast_renege and node_id in global_events:
+                            log_event(env.now, eid, node_id, label, "sold_out")
+                            global_events[node_id].succeed()
+                            global_events[node_id] = env.event() # Reset for next time
+                            
+                yield env.process(do_resource_service(env, eid, res_node_id, res_cfg, res_s, resources, queued_at))
+            else:
+                # Reneged due to timeout or sold_out
+                req.cancel()
+                log_event(env.now, eid, node_id, label, "reneged")
+                s["currentDepth"] -= 1
+                s["renegeCount"] = s.get("renegeCount", 0) + 1
+                res_s["currentDepth"] -= 1
+                return
         else:
             s["currentDepth"] -= 1
             s["entitiesOut"] += 1
@@ -265,7 +302,10 @@ def entity_process(env, eid, node_id, resources, entity_attrs=None):
         res = resources[node_id]
         queued_at = env.now
         log_event(env.now, eid, node_id, label, "queued")
-        with res.request() as req:
+        
+        # Direct requests to resources use their base priority (or entity priority if supported)
+        req_pri = entity_attrs.get("priority", 3) + (env.now / 1000000.0)
+        with res.request(priority=req_pri) as req:
             yield req
             yield env.process(do_resource_service(env, eid, node_id, cfg, s, resources, queued_at))
 
@@ -705,10 +745,10 @@ def run_simulation():
         if n_type in ("resource", "priority_resource"):
             cap = cfg["params"].get("capacity", 1)
             is_pre = cfg["params"].get("isPreemptive", False)
-            if n_type == "priority_resource" or is_pre:
-                resources[nid] = simpy.PriorityResource(env, capacity=max(1, cap))
+            if is_pre:
+                resources[nid] = simpy.PreemptiveResource(env, capacity=max(1, cap))
             else:
-                resources[nid] = simpy.Resource(env, capacity=max(1, cap))
+                resources[nid] = simpy.PriorityResource(env, capacity=max(1, cap))
         elif n_type == "store":
             cap = cfg["params"].get("capacity", -1)
             c = max(1, cap) if cap > 0 else float('inf')

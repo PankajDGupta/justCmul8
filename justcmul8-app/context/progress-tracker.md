@@ -61,6 +61,13 @@ NodePropertiesPanel exposes their full configuration surfaces.
   - [x] `npx tsc --noEmit` → exit 0 (zero type errors).
   - [ ] NHPP arrivals correctly follow time-varying schedules — runtime
         validation still needed (requires Pyodide end-to-end test).
+- **[2026-05-16 21:06 IST] Queue Node — Full Spec Implementation**
+  Files changed: `types.ts`, `codeGenerator.ts`, `NodePropertiesPanel.tsx`.
+  Spec checklist:
+  - [x] Capacity and Discipline — finite capacity enforcement, support for FIFO, LIFO, and PRIORITY via `PriorityResource`.
+  - [x] Patience (Reneging) — infinite, uniform, exponential, deterministic distributions with timeout dropping.
+  - [x] Sold-Out / Capacity Broadcast — monitor downstream resource capacity and trigger broadcast renege for all waitings.
+  - [x] UI — updated `QueueProperties` in `NodePropertiesPanel.tsx` with all the new params.
 
 ## In Progress
 
