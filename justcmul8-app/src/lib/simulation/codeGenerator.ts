@@ -163,26 +163,58 @@ def snapshot_stats(env):
     return snap
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-def do_resource_service(env, eid, node_id, cfg, s, resources, queued_at):
+def handle_resource_lifecycle(env, eid, node_id, cfg, s, resources, queued_at, entity_attrs, req_pri=None, initial_req=None):
+    res = resources[node_id]
     params = cfg["params"]
     label = cfg["label"]
-    wait_time = env.now - queued_at
-    s["waits"].append(wait_time)
-    s["busyCount"] += 1
-    svc_time = sample(
+    
+    if req_pri is None:
+        req_pri = entity_attrs.get("priority", 3) + (env.now / 1000000.0)
+        
+    original_svc_time = sample(
         params.get("serviceDistribution", "exponential"),
         params.get("serviceTimeMean", 1)
     )
-    log_event(env.now, eid, node_id, label, "service_start")
-    yield env.timeout(svc_time)
-    s["services"].append(svc_time)
-    s["busyCount"] -= 1
+    svc_time = original_svc_time
+    
+    started_service = False
+    req = initial_req
+    
+    while svc_time > 0:
+        if req is None:
+            req = res.request(priority=req_pri)
+            yield req
+            
+        if not started_service:
+            wait_time = env.now - queued_at
+            s["waits"].append(wait_time)
+            log_event(env.now, eid, node_id, label, "service_start")
+            started_service = True
+            
+        s["busyCount"] += 1
+        start = env.now
+        
+        try:
+            yield env.timeout(svc_time)
+            svc_time = 0  # Finished!
+        except simpy.Interrupt:
+            log_event(env.now, eid, node_id, label, "preempted")
+            svc_time -= (env.now - start)
+        finally:
+            s["busyCount"] -= 1
+            if req is not None:
+                # SimPy PreemptiveResource handles released properly, but we must release the request explicitly 
+                # if we were the ones holding it when finished or preempted.
+                res.release(req)
+                req = None
+
+    s["services"].append(original_svc_time)
     log_event(env.now, eid, node_id, label, "service_end")
     s["currentDepth"] -= 1
     s["entitiesOut"] += 1
     next_id = get_next_target(node_id)
     if next_id:
-        yield env.process(entity_process(env, eid, next_id, resources))
+        yield env.process(entity_process(env, eid, next_id, resources, entity_attrs))
 
 # ── SimPy Processes ────────────────────────────────────────────────────────────
 def entity_process(env, eid, node_id, resources, entity_attrs=None):
@@ -283,7 +315,9 @@ def entity_process(env, eid, node_id, resources, entity_attrs=None):
                             global_events[node_id].succeed()
                             global_events[node_id] = env.event() # Reset for next time
                             
-                yield env.process(do_resource_service(env, eid, res_node_id, res_cfg, res_s, resources, queued_at))
+                yield env.process(handle_resource_lifecycle(
+                    env, eid, res_node_id, res_cfg, res_s, resources, queued_at, entity_attrs, req_pri, initial_req=req
+                ))
             else:
                 # Reneged due to timeout or sold_out
                 req.cancel()
@@ -303,11 +337,10 @@ def entity_process(env, eid, node_id, resources, entity_attrs=None):
         queued_at = env.now
         log_event(env.now, eid, node_id, label, "queued")
         
-        # Direct requests to resources use their base priority (or entity priority if supported)
         req_pri = entity_attrs.get("priority", 3) + (env.now / 1000000.0)
-        with res.request(priority=req_pri) as req:
-            yield req
-            yield env.process(do_resource_service(env, eid, node_id, cfg, s, resources, queued_at))
+        yield env.process(handle_resource_lifecycle(
+            env, eid, node_id, cfg, s, resources, queued_at, entity_attrs, req_pri=req_pri
+        ))
 
     elif node_type == "service":
         params = cfg["params"]
@@ -733,6 +766,55 @@ def stats_total_completed(snap):
             return s["entitiesOut"]
     return 0
 
+def breakdown_process(env, node_id, resources):
+    cfg = NODE_CONFIG[node_id]
+    params = cfg["params"]
+    label = cfg["label"]
+    s = stats[node_id]
+    
+    mtbf = params.get("meanTimeBetweenFailures")
+    if not mtbf:
+        return
+        
+    repair_mean = params.get("repairTimeMean", 1)
+    repair_dist = params.get("repairDistribution", "exponential")
+    repairman_id = params.get("repairmanNodeId")
+    repair_pri = params.get("repairPriority", 1)
+    
+    res = resources[node_id]
+    
+    while True:
+        time_to_fail = sample("exponential", mtbf)
+        yield env.timeout(time_to_fail)
+        
+        # Breakdown occurred
+        log_event(env.now, 0, node_id, label, "breakdown")
+        s["breakdownCount"] = s.get("breakdownCount", 0) + 1
+        start_downtime = env.now
+        
+        # Seize all slots with extremely high priority (-999) to simulate breakdown
+        reqs = [res.request(priority=-999) for _ in range(res.capacity)]
+        yield env.all_of(reqs)
+        
+        # Do repair
+        if repairman_id and repairman_id in resources:
+            rep_res = resources[repairman_id]
+            with rep_res.request(priority=repair_pri) as rep_req:
+                yield rep_req
+                repair_time = sample(repair_dist, repair_mean)
+                yield env.timeout(repair_time)
+        else:
+            repair_time = sample(repair_dist, repair_mean)
+            yield env.timeout(repair_time)
+            
+        # Repaired
+        for req in reqs:
+            res.release(req)
+            
+        downtime = env.now - start_downtime
+        s["totalDowntime"] = s.get("totalDowntime", 0.0) + downtime
+        log_event(env.now, 0, node_id, label, "repaired")
+
 def run_simulation():
     env = simpy.Environment()
     resources = {}
@@ -764,6 +846,9 @@ def run_simulation():
     for nid, cfg in NODE_CONFIG.items():
         if cfg["nodeType"] == "source":
             env.process(source_process(env, nid, resources, total_arrived))
+        elif cfg["nodeType"] in ("resource", "priority_resource"):
+            if cfg["params"].get("meanTimeBetweenFailures"):
+                env.process(breakdown_process(env, nid, resources))
 
     env.process(tick_emitter(env, resources, total_arrived))
 

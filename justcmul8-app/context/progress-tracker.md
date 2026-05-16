@@ -68,6 +68,13 @@ NodePropertiesPanel exposes their full configuration surfaces.
   - [x] Patience (Reneging) — infinite, uniform, exponential, deterministic distributions with timeout dropping.
   - [x] Sold-Out / Capacity Broadcast — monitor downstream resource capacity and trigger broadcast renege for all waitings.
   - [x] UI — updated `QueueProperties` in `NodePropertiesPanel.tsx` with all the new params.
+- **[2026-05-16 21:45 IST] Resource Node — Full Spec Implementation**
+  Files changed: `codeGenerator.ts`, `NodePropertiesPanel.tsx`.
+  Spec checklist:
+  - [x] Capacity and Processing — variable parallel servers, processing distributions.
+  - [x] Reliability (Machine Breakdowns) — periodic MTBF failures, background repair process with specific repairmen.
+  - [x] Preemption — `isPreemptive` correctly interrupts current work (via `handle_resource_lifecycle`), forces early release and queue re-entry.
+  - [x] UI — `ResourceProperties` component implemented to configure capacity, break downs, and preemption flags.
 
 ## In Progress
 

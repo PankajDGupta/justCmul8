@@ -459,6 +459,103 @@ function StoreProperties({ params, nodeId, onUpdate }: { params: any; nodeId: st
   );
 }
 
+// ─── Resource Properties ──────────────────────────────────────────────────────
+function ResourceProperties({ params, nodeId, nodeType, onUpdate }: { params: any; nodeId: string; nodeType: string; onUpdate: (id: string, data: any) => void }) {
+  function setParam(key: string, value: any) {
+    onUpdate(nodeId, { params: { ...params, [key]: value } });
+  }
+
+  return (
+    <>
+      {/* ── 1. Capacity and Processing ─────────────────────────────────────── */}
+      <div className={sectionCls} style={sectionBorderStyle}>
+        <SectionHeading icon={Settings}>Capacity & Processing</SectionHeading>
+        
+        <div>
+          <label className={labelCls}>Capacity (Parallel servers)</label>
+          <input type="number" min={1} value={params?.capacity || 1} onChange={(e) => setParam("capacity", Number(e.target.value))} className={inputCls} style={inputStyle} />
+        </div>
+        
+        <div className="mt-3">
+          <label className={labelCls}>Service Distribution</label>
+          <select value={params?.serviceDistribution || "exponential"} onChange={(e) => setParam("serviceDistribution", e.target.value)} className={selectCls} style={inputStyle}>
+            <option value="exponential">Exponential</option>
+            <option value="uniform">Uniform</option>
+            <option value="normal">Normal</option>
+            <option value="deterministic">Deterministic</option>
+          </select>
+        </div>
+
+        <div className="mt-3">
+          <label className={labelCls}>Service Time Mean</label>
+          <input type="number" min={0} step={0.1} value={params?.serviceTimeMean ?? 1} onChange={(e) => setParam("serviceTimeMean", Number(e.target.value))} className={inputCls} style={inputStyle} />
+        </div>
+      </div>
+
+      {/* ── 2. Preemption ──────────────────────────────────────────────────── */}
+      {nodeType === "priority_resource" && (
+        <div className={sectionCls} style={sectionBorderStyle}>
+          <SectionHeading icon={Zap}>Preemption</SectionHeading>
+          <div className="flex items-center justify-between">
+            <label className={labelCls + " mb-0"}>Is Preemptive</label>
+            <button
+              onClick={() => setParam("isPreemptive", !params?.isPreemptive)}
+              className="px-2 py-1 rounded text-[10px] font-mono border transition-colors"
+              style={{
+                background: params?.isPreemptive ? "rgba(255,0,128,0.2)" : "transparent",
+                borderColor: params?.isPreemptive ? "#ff0080" : "rgba(255,255,255,0.1)",
+                color: params?.isPreemptive ? "#ff0080" : "var(--text-muted)"
+              }}
+            >
+              {params?.isPreemptive ? "YES" : "NO"}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1">If YES, high priority entities will interrupt currently processing ones if full.</p>
+        </div>
+      )}
+
+      {/* ── 3. Reliability (Machine Breakdowns) ────────────────────────────── */}
+      <div className={sectionCls} style={sectionBorderStyle}>
+        <SectionHeading icon={Zap}>Reliability (Breakdowns)</SectionHeading>
+
+        <div>
+          <label className={labelCls}>MTBF (Mean Time Between Failures)</label>
+          <input type="number" placeholder="e.g. 100 (empty = no failure)" value={params?.meanTimeBetweenFailures || ""} onChange={(e) => setParam("meanTimeBetweenFailures", e.target.value === "" ? undefined : Number(e.target.value))} className={inputCls} style={inputStyle} />
+        </div>
+
+        {params?.meanTimeBetweenFailures !== undefined && (
+          <>
+            <div className="mt-3">
+              <label className={labelCls}>Repair Distribution</label>
+              <select value={params?.repairDistribution || "exponential"} onChange={(e) => setParam("repairDistribution", e.target.value)} className={selectCls} style={inputStyle}>
+                <option value="exponential">Exponential</option>
+                <option value="uniform">Uniform</option>
+                <option value="normal">Normal</option>
+                <option value="deterministic">Deterministic</option>
+              </select>
+            </div>
+            <div className="mt-3">
+              <label className={labelCls}>Repair Time Mean</label>
+              <input type="number" min={0} step={0.1} value={params?.repairTimeMean ?? 5} onChange={(e) => setParam("repairTimeMean", Number(e.target.value))} className={inputCls} style={inputStyle} />
+            </div>
+            <div className="mt-3">
+              <label className={labelCls}>Repairman Node ID (Optional)</label>
+              <input type="text" placeholder="e.g. node_123" value={params?.repairmanNodeId || ""} onChange={(e) => setParam("repairmanNodeId", e.target.value)} className={inputCls} style={inputStyle} />
+            </div>
+            {params?.repairmanNodeId && (
+              <div className="mt-3">
+                <label className={labelCls}>Repair Priority</label>
+                <input type="number" value={params?.repairPriority ?? 1} onChange={(e) => setParam("repairPriority", Number(e.target.value))} className={inputCls} style={inputStyle} />
+                <p className="text-[10px] text-gray-500 mt-1">Lower number = higher priority when requesting repairman.</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ─── Interrupter Properties ──────────────────────────────────────────────────
 function InterrupterProperties({ params, nodeId, onUpdate }: { params: any; nodeId: string; onUpdate: (id: string, data: any) => void }) {
   function setParam(key: string, value: any) {
@@ -539,8 +636,12 @@ export default function NodePropertiesPanel({ node, simType, onUpdate }: NodePro
           <InterrupterProperties params={params || {}} nodeId={node.id} onUpdate={onUpdate} />
         )}
 
+        {(nodeType === "resource" || nodeType === "priority_resource") && (
+          <ResourceProperties params={params || {}} nodeId={node.id} nodeType={nodeType} onUpdate={onUpdate} />
+        )}
+
         {/* Generic params viewer for all other node types */}
-        {nodeType !== "source" && nodeType !== "queue" && nodeType !== "store" && nodeType !== "interrupter" && params && Object.keys(params).length > 0 && (
+        {nodeType !== "source" && nodeType !== "queue" && nodeType !== "store" && nodeType !== "interrupter" && nodeType !== "resource" && nodeType !== "priority_resource" && params && Object.keys(params).length > 0 && (
           <div>
             <label className={labelCls}>Simulation Parameters</label>
             <div className="bg-black/50 border rounded p-3 text-xs font-mono" style={{ borderColor: "rgba(0,242,255,0.1)" }}>
